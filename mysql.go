@@ -27,7 +27,11 @@ func InitMysqlClient(configName ...string) {
 			log.Error("[MYSQL]: InitMysqlClient err, config name: %s, err: %+v", name, err)
 			continue
 		}
+
 		AllMysqlClientsRmu.Lock()
+		if oldCli, ok := AllMysqlClients[name]; ok { //	如果已存在则先关闭
+			oldCli.close()
+		}
 		AllMysqlClients[name] = cli
 		AllMysqlClientsRmu.Unlock()
 		log.Info("[MYSQL]: InitMysqlClient succ, config name: %s", name)
@@ -36,6 +40,9 @@ func InitMysqlClient(configName ...string) {
 
 //close all client
 func CloseMysqlClient() {
+	if AllMysqlClients == nil {
+		return
+	}
 	AllMysqlClientsRmu.RLock()
 	defer AllMysqlClientsRmu.RUnlock()
 	for _, cli := range AllMysqlClients {
