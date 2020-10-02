@@ -131,4 +131,15 @@ func TestMysqlClient(t *testing.T) {
 		log.Error("mysql Delete succ")
 	}
 
+	//or
+	//get
+	where7 := make(map[string]interface{})
+	fields7 := []string{"id", "c_userid", "c_user_name", "c_state"}
+	var users7 []DbUser
+	err = MysqlQuery("mysql_test1", "t_user", where7, fields7, 0, 2, &users7)
+	if err != nil {
+		log.Error("mysql Query err, err: %+v", err)
+	} else {
+		log.Error("mysql Query succ, user: %+v", users7)
+	}
 }

@@ -10,11 +10,13 @@ import (
 	_ "github.com/go-sql-driver/mysql"
 	"sync"
 )
+//mysql client封装
 
 var AllMysqlClients map[string]*MysqlClient //全局mysql client
 var AllMysqlClientsRmu sync.RWMutex
 
 //初始化全局mysql对象
+//configName: 配置名
 func InitMysqlClient(configName ...string) {
 	if AllMysqlClients == nil {
 		AllMysqlClients = make(map[string]*MysqlClient)
@@ -30,7 +32,7 @@ func InitMysqlClient(configName ...string) {
 
 		AllMysqlClientsRmu.Lock()
 		if oldCli, ok := AllMysqlClients[name]; ok { //	如果已存在则先关闭
-			oldCli.close()
+			oldCli.Close()
 		}
 		AllMysqlClients[name] = cli
 		AllMysqlClientsRmu.Unlock()
@@ -46,11 +48,12 @@ func CloseMysqlClient() {
 	AllMysqlClientsRmu.RLock()
 	defer AllMysqlClientsRmu.RUnlock()
 	for _, cli := range AllMysqlClients {
-		cli.close()
+		cli.Close()
 	}
 }
 
-//get client
+//get client,不主动调用Close()是不会关闭连接的
+//configName: 配置名
 func GetMysqlClient(configName string) (*MysqlClient, error) {
 	AllMysqlClientsRmu.RLock()
 	defer AllMysqlClientsRmu.RUnlock()
@@ -68,6 +71,7 @@ type MysqlClient struct {
 }
 
 //创建db client
+//config: 配置
 func NewMysqlClient(config config.ConfigMysql) (*MysqlClient, error) {
 	client := &MysqlClient{
 		config: config,
@@ -100,7 +104,7 @@ func (cli *MysqlClient) open() error {
 }
 
 //close
-func (cli *MysqlClient) close() {
+func (cli *MysqlClient) Close() {
 	_ = cli.db.Close()
 }
 
