@@ -112,6 +112,7 @@ func TestMysqlClient(t *testing.T) {
 	//get
 	where5 := make(map[string]interface{})
 	where5["c_state"] = 0
+	//where5["id >"] = 1
 	fields2 := []string{"c_userid", "c_user_name", "c_state"}
 	var users2 []DbUser
 	err = cli.Query("t_user", where5, fields2, 0, 2, &users2)
