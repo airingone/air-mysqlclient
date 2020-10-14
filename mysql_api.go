@@ -1,5 +1,64 @@
 package air_mysqlclient
 
+import (
+	"errors"
+	"github.com/airingone/config"
+	"github.com/airingone/log"
+	"sync"
+)
+
+var AllMysqlClients map[string]*MysqlClient //全局mysql client
+var AllMysqlClientsRmu sync.RWMutex
+
+//初始化全局mysql对象
+//configName: 配置名
+func InitMysqlClient(configName ...string) {
+	if AllMysqlClients == nil {
+		AllMysqlClients = make(map[string]*MysqlClient)
+	}
+
+	for _, name := range configName {
+		config := config.GetMysqlConfig(name)
+		cli, err := NewMysqlClient(config.Addr, config.MaxIdleConns, config.MaxOpenConns)
+		if err != nil {
+			log.Error("[MYSQL]: InitMysqlClient err, config name: %s, err: %+v", name, err)
+			continue
+		}
+
+		AllMysqlClientsRmu.Lock()
+		if oldCli, ok := AllMysqlClients[name]; ok { //	如果已存在则先关闭
+			oldCli.Close()
+		}
+		AllMysqlClients[name] = cli
+		AllMysqlClientsRmu.Unlock()
+		log.Info("[MYSQL]: InitMysqlClient succ, config name: %s", name)
+	}
+}
+
+//close all client
+func CloseMysqlClient() {
+	if AllMysqlClients == nil {
+		return
+	}
+	AllMysqlClientsRmu.RLock()
+	defer AllMysqlClientsRmu.RUnlock()
+	for _, cli := range AllMysqlClients {
+		cli.Close()
+	}
+}
+
+//get client,不主动调用Close()是不会关闭连接的
+//configName: 配置名
+func GetMysqlClient(configName string) (*MysqlClient, error) {
+	AllMysqlClientsRmu.RLock()
+	defer AllMysqlClientsRmu.RUnlock()
+	if _, ok := AllMysqlClients[configName]; !ok {
+		return nil, errors.New("mysql client not exist")
+	}
+
+	return AllMysqlClients[configName], nil
+}
+
 //Insert
 //configName: 配置文件名
 //tableName: 数据库表名

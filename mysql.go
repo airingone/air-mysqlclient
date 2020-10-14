@@ -3,78 +3,28 @@ package air_mysqlclient
 import (
 	"database/sql"
 	"errors"
-	"github.com/airingone/config"
-	"github.com/airingone/log"
 	"github.com/didi/gendry/builder"
 	"github.com/didi/gendry/scanner"
 	_ "github.com/go-sql-driver/mysql"
-	"sync"
 )
+
 //mysql client封装
-
-var AllMysqlClients map[string]*MysqlClient //全局mysql client
-var AllMysqlClientsRmu sync.RWMutex
-
-//初始化全局mysql对象
-//configName: 配置名
-func InitMysqlClient(configName ...string) {
-	if AllMysqlClients == nil {
-		AllMysqlClients = make(map[string]*MysqlClient)
-	}
-
-	for _, name := range configName {
-		config := config.GetMysqlConfig(name)
-		cli, err := NewMysqlClient(config)
-		if err != nil {
-			log.Error("[MYSQL]: InitMysqlClient err, config name: %s, err: %+v", name, err)
-			continue
-		}
-
-		AllMysqlClientsRmu.Lock()
-		if oldCli, ok := AllMysqlClients[name]; ok { //	如果已存在则先关闭
-			oldCli.Close()
-		}
-		AllMysqlClients[name] = cli
-		AllMysqlClientsRmu.Unlock()
-		log.Info("[MYSQL]: InitMysqlClient succ, config name: %s", name)
-	}
-}
-
-//close all client
-func CloseMysqlClient() {
-	if AllMysqlClients == nil {
-		return
-	}
-	AllMysqlClientsRmu.RLock()
-	defer AllMysqlClientsRmu.RUnlock()
-	for _, cli := range AllMysqlClients {
-		cli.Close()
-	}
-}
-
-//get client,不主动调用Close()是不会关闭连接的
-//configName: 配置名
-func GetMysqlClient(configName string) (*MysqlClient, error) {
-	AllMysqlClientsRmu.RLock()
-	defer AllMysqlClientsRmu.RUnlock()
-	if _, ok := AllMysqlClients[configName]; !ok {
-		return nil, errors.New("mysql client not exist")
-	}
-
-	return AllMysqlClients[configName], nil
-}
 
 //mysql client
 type MysqlClient struct {
-	db     *sql.DB //db对象，协程安全的
-	config config.ConfigMysql
+	db           *sql.DB //db对象，协程安全的
+	addr         string  //地址，如"root:test.2020@tcp(127.0.0.1:3306)/air_test?charset=utf8"
+	maxIdleConns uint32  //最大空闲连接
+	maxOpenConns uint32  //最大打开连接数
 }
 
 //创建db client
 //config: 配置
-func NewMysqlClient(config config.ConfigMysql) (*MysqlClient, error) {
+func NewMysqlClient(addr string, maxIdleConns uint32, maxOpenConns uint32) (*MysqlClient, error) {
 	client := &MysqlClient{
-		config: config,
+		addr:         addr,
+		maxIdleConns: maxIdleConns,
+		maxOpenConns: maxOpenConns,
 	}
 
 	err := client.open()
@@ -87,15 +37,15 @@ func NewMysqlClient(config config.ConfigMysql) (*MysqlClient, error) {
 
 //open
 func (cli *MysqlClient) open() error {
-	db, err := sql.Open("mysql", cli.config.Addr)
+	db, err := sql.Open("mysql", cli.addr)
 	if err != nil {
 		return err
 	}
-	if cli.config.MaxIdleConns > 0 {
-		db.SetMaxIdleConns(int(cli.config.MaxIdleConns))
+	if cli.maxIdleConns > 0 {
+		db.SetMaxIdleConns(int(cli.maxIdleConns))
 	}
-	if cli.config.MaxOpenConns > 0 {
-		db.SetMaxOpenConns(int(cli.config.MaxOpenConns))
+	if cli.maxOpenConns > 0 {
+		db.SetMaxOpenConns(int(cli.maxOpenConns))
 	}
 
 	cli.db = db
@@ -105,7 +55,9 @@ func (cli *MysqlClient) open() error {
 
 //close
 func (cli *MysqlClient) Close() {
-	_ = cli.db.Close()
+	if cli.db != nil {
+		_ = cli.db.Close()
+	}
 }
 
 //Insert

@@ -43,7 +43,25 @@ func main() {
     } else {
         log.Error("mysql Query succ, user: %+v", users7)
     }
-    
+
+    //or
+    mysqlConfig := config.GetMysqlConfig("mysql_test1")
+    cli2, err := mysqlclient.NewMysqlClient(mysqlConfig.Addr, mysqlConfig.MaxIdleConns, mysqlConfig.MaxOpenConns)
+    if err != nil {
+        log.Error("new mysql client err, err: %+v", err)
+        return
+    }
+    where8 := make(map[string]interface{})
+    fields8 := []string{"id", "c_userid", "c_user_name", "c_state"}
+    var users8 []DbUser
+    err = cli2.Query("t_user", where8, fields8, 0, 2, &users8)
+    if err != nil {
+        log.Error("mysql Query err, err: %+v", err)
+    } else {
+        log.Error("mysql Query succ, user: %+v", users8)
+    }
+    cli2.Close()    
+
     //Update,Query,QueryCount,Delete等操作详见实现代码或测试列子。
 }
 ```
